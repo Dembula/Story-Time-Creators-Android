@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android / IDE
+local.properties
+*.iml
+.idea/
+.DS_Store
+captures/
+
+# Logs / crash dumps
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# Keystores / signing
+*.jks
+*.keystore
+
+# Kotlin
+.kotlin/
