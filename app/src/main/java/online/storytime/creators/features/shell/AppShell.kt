@@ -96,8 +96,12 @@ fun AppShell() {
         }
 
         // VA panel
-        AnimatedVisibility(visible = va.isPanelOpen, enter = fadeIn(), exit = fadeOut()) {
-            VAPanel(onClose = { va.isPanelOpen = false })
+        AnimatedVisibility(
+            visible = va.isPanelOpen,
+            enter = slideInHorizontally(initialOffsetX = { it }),
+            exit = slideOutHorizontally(targetOffsetX = { it }),
+        ) {
+            VAPanel(onClose = { va.close() })
         }
     }
 }

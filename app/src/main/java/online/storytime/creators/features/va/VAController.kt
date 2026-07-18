@@ -46,7 +46,16 @@ class VAController(private val client: ApiClient) {
         }
     }
 
-    fun toggle() { isPanelOpen = !isPanelOpen }
+    fun toggle() { if (isPanelOpen) close() else open() }
+
+    fun open() {
+        isPanelOpen = true
+        if (messages.isEmpty() && greeting.isNotEmpty()) {
+            messages.add(VAMessage(System.nanoTime().toString(), "assistant", greeting))
+        }
+    }
+
+    fun close() { isPanelOpen = false }
 
     suspend fun send(text: String) {
         val trimmed = text.trim()

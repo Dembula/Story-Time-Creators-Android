@@ -21,3 +21,6 @@ replay_pid*.log
 
 # Kotlin
 .kotlin/
+
+# Local offline aapt2 workaround (machine-specific)
+.aapt2/

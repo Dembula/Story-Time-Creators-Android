@@ -204,6 +204,10 @@ private fun ProjectWorkspace(project: CreatorProject, onOpenTool: (ProjectTool) 
             project.type?.let { StatTile("Type", it, "film.fill", Modifier.weight(1f)) }
             project.genre?.let { StatTile("Genre", it, "sparkles", Modifier.weight(1f)) }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            project.ideasCount?.let { StatTile("Ideas", "$it", "lightbulb.fill", Modifier.weight(1f)) }
+            project.budget?.takeIf { it > 0 }?.let { StatTile("Budget", "R%.0f".format(it), "dollarsign.circle.fill", Modifier.weight(1f)) }
+        }
 
         SectionHeader("${phase.title} Tools", "${tools.size}")
         tools.forEach { tool ->

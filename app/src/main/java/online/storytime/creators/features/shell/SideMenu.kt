@@ -1,5 +1,6 @@
 package online.storytime.creators.features.shell
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,10 +28,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import online.storytime.creators.R
 import online.storytime.creators.core.Session
 import online.storytime.creators.core.model.AppDestination
 import online.storytime.creators.core.theme.STColor
@@ -41,61 +45,60 @@ fun SideMenu() {
     val router = Session.router
     val auth = Session.auth
     val scope = rememberCoroutineScope()
-    val user = auth.currentUser
 
     Column(
         Modifier
             .fillMaxHeight()
             .width(300.dp)
             .background(STColor.surface)
-            .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .statusBarsPadding(),
     ) {
         // Header
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 12.dp)) {
-            Box(
-                Modifier.size(48.dp).clip(CircleShape).background(STColor.brandGradient),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    (user?.displayName?.firstOrNull() ?: 'C').uppercase(),
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                )
-            }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+        ) {
+            Image(
+                painter = painterResource(R.drawable.st_logo),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)),
+            )
             Spacer(Modifier.width(12.dp))
-            Column {
-                Text(user?.displayName ?: "Creator", color = STColor.textPrimary, fontWeight = FontWeight.Bold)
-                user?.email?.let { Text(it, color = STColor.textSecondary, fontSize = 12.sp) }
+            Column(Modifier.weight(1f)) {
+                Text("Story Time", color = STColor.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Creators", color = STColor.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
             }
+            Box(
+                Modifier.size(32.dp).clip(CircleShape).background(STColor.surfaceElevated).clickable { router.closeMenu() },
+                contentAlignment = Alignment.Center,
+            ) { Icon(stIcon("xmark"), "Close", tint = STColor.textSecondary, modifier = Modifier.size(13.dp)) }
         }
 
-        Spacer(Modifier.height(8.dp))
-        MenuSection("Operating", AppDestination.operating, router.destination) { router.open(it) }
-        MenuSection("Monetization", AppDestination.monetization, router.destination) { router.open(it) }
-        MenuSection("Pipeline", AppDestination.pipeline, router.destination) { router.open(it) }
-        MenuSection("Marketplace", listOf(
-            AppDestination.cast, AppDestination.crew, AppDestination.locations,
-            AppDestination.equipment, AppDestination.catering, AppDestination.music,
-            AppDestination.legalInbox, AppDestination.originals,
-        ), router.destination) { router.open(it) }
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            MenuSection("Operating", AppDestination.operating, router.destination) { router.open(it) }
+            MenuSection("Catalogue", AppDestination.monetization, router.destination) { router.open(it) }
+            MenuRow(AppDestination.originals, router.destination == AppDestination.originals, highlight = true) { router.open(AppDestination.originals) }
+            MenuSection("Pipeline", AppDestination.pipeline, router.destination) { router.open(it) }
+            Spacer(Modifier.height(8.dp))
+        }
 
-        Spacer(Modifier.height(20.dp))
+        // Sign out
         Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .background(STColor.surfaceElevated)
                 .clickable { scope.launch { auth.signOut() } }
-                .padding(14.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(stIcon("rectangle.portrait.and.arrow.right"), null, tint = STColor.danger, modifier = Modifier.size(20.dp))
+            Icon(stIcon("rectangle.portrait.and.arrow.right"), null, tint = STColor.textPrimary, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(12.dp))
-            Text("Sign Out", color = STColor.danger, fontWeight = FontWeight.Medium)
+            Text("Log out", color = STColor.textPrimary, fontWeight = FontWeight.Medium, fontSize = 15.sp)
         }
-        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -106,38 +109,43 @@ private fun MenuSection(
     current: AppDestination,
     onSelect: (AppDestination) -> Unit,
 ) {
-    Text(
-        title.uppercase(),
-        color = STColor.textMuted,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 1.5.sp,
-        modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
-    )
-    items.forEach { dest ->
-        val selected = dest == current
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (selected) STColor.primary.copy(alpha = 0.15f) else Color.Transparent)
-                .clickable { onSelect(dest) }
-                .padding(horizontal = 12.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                stIcon(dest.icon),
-                null,
-                tint = if (selected) STColor.primary else STColor.textSecondary,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.width(14.dp))
-            Text(
-                dest.title,
-                color = if (selected) STColor.textPrimary else STColor.textSecondary,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                fontSize = 14.sp,
-            )
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            title.uppercase(),
+            color = STColor.textMuted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.2.sp,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
+        items.forEach { dest -> MenuRow(dest, dest == current) { onSelect(dest) } }
+    }
+}
+
+@Composable
+private fun MenuRow(dest: AppDestination, active: Boolean, highlight: Boolean = false, onClick: () -> Unit) {
+    val bg = when {
+        active -> STColor.primary.copy(alpha = 0.14f)
+        highlight -> STColor.primary.copy(alpha = 0.08f)
+        else -> Color.Transparent
+    }
+    val tint = if (highlight || active) STColor.accent else STColor.textPrimary
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(stIcon(dest.icon), null, tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(
+            dest.title,
+            color = tint,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+            fontSize = 15.sp,
+        )
     }
 }

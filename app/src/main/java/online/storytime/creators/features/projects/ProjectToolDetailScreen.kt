@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,24 +31,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import online.storytime.creators.core.Session
-import online.storytime.creators.core.model.OkResponse
 import online.storytime.creators.core.model.ProductionWorkspaceResponse
 import online.storytime.creators.core.model.ProjectTool
 import online.storytime.creators.core.model.ToolActivityRow
-import online.storytime.creators.core.model.ToolProgressBody
 import online.storytime.creators.core.network.get
-import online.storytime.creators.core.network.patch
 import online.storytime.creators.core.service.ToolReportBuilder
 import online.storytime.creators.core.theme.STColor
 import online.storytime.creators.core.theme.stIcon
 import online.storytime.creators.ui.EmptyStateView
 import online.storytime.creators.ui.ErrorStateView
-import online.storytime.creators.ui.GradientButton
 import online.storytime.creators.ui.LoadingStateView
 import online.storytime.creators.ui.Pill
 import online.storytime.creators.ui.SectionHeader
@@ -62,8 +61,6 @@ fun ProjectToolDetailScreen(tool: ProjectTool, projectId: String?) {
     var error by remember(tool, projectId) { mutableStateOf<String?>(null) }
     var rows by remember(tool, projectId) { mutableStateOf<List<ToolActivityRow>>(emptyList()) }
     var summary by remember(tool, projectId) { mutableStateOf("Connected to your project workspace.") }
-    var marking by remember { mutableStateOf(false) }
-    var progressMsg by remember { mutableStateOf<String?>(null) }
 
     suspend fun load() {
         if (projectId == null) { loading = false; error = "No project selected."; return }
@@ -86,7 +83,7 @@ fun ProjectToolDetailScreen(tool: ProjectTool, projectId: String?) {
 
         val deduped = combined.distinctBy { it.id }.sortedByDescending { it.timestamp ?: "" }
         summary = if (deduped.isEmpty()) {
-            "No recorded updates yet for ${tool.label}. Work in the web studio or mark progress below to seed the timeline."
+            "No recorded updates yet for ${tool.label}. Work in the web studio to seed the timeline."
         } else {
             buildList {
                 add("${deduped.size} update${if (deduped.size == 1) "" else "s"}")
@@ -117,6 +114,7 @@ fun ProjectToolDetailScreen(tool: ProjectTool, projectId: String?) {
                 contentAlignment = Alignment.Center,
             ) { Icon(stIcon("arrow.clockwise"), "Refresh", tint = STColor.textSecondary, modifier = Modifier.size(18.dp)) }
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(STColor.border))
 
         when {
             loading && rows.isEmpty() -> LoadingStateView("Loading ${tool.label}…")
@@ -132,7 +130,7 @@ fun ProjectToolDetailScreen(tool: ProjectTool, projectId: String?) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(46.dp).clip(RoundedCornerShape(13.dp)).background(STColor.brandGradient), contentAlignment = Alignment.Center) {
-                            Icon(stIcon(tool.icon), null, tint = androidx.compose.ui.graphics.Color.Black, modifier = Modifier.size(22.dp))
+                            Icon(stIcon(tool.icon), null, tint = Color.Black, modifier = Modifier.size(22.dp))
                         }
                         Spacer(Modifier.width(12.dp))
                         Column {
@@ -154,32 +152,10 @@ fun ProjectToolDetailScreen(tool: ProjectTool, projectId: String?) {
 
                 SectionHeader("Latest updates", "${rows.size}")
                 if (rows.isEmpty()) {
-                    EmptyStateView("sparkles", "No activity yet", "Edits from the web studio — versions, notes, and tasks — land here.")
+                    EmptyStateView("sparkles", "No activity yet", "When your team edits this tool on the web studio, versions, notes, and tasks land here.")
                 } else {
-                    rows.forEach { ActivityRow(it) }
+                    rows.forEachIndexed { index, row -> ActivityRow(row, isLast = index == rows.lastIndex) }
                 }
-
-                GradientButton(
-                    label = if (marking) "Updating…" else "Mark in progress",
-                    modifier = Modifier.fillMaxWidth(),
-                    busy = marking,
-                ) {
-                    if (projectId == null) return@GradientButton
-                    scope.launch {
-                        marking = true
-                        progressMsg = null
-                        val result = runCatching {
-                            client.patch<OkResponse, ToolProgressBody>(
-                                "/api/creator/projects/$projectId/tools/progress",
-                                ToolProgressBody(phase = tool.phase.raw, toolId = tool.raw, status = "IN_PROGRESS", percent = 50.0),
-                            )
-                        }
-                        marking = false
-                        progressMsg = if (result.isSuccess) "Marked ${tool.label} as in progress." else result.exceptionOrNull()?.message
-                        if (result.isSuccess) load()
-                    }
-                }
-                progressMsg?.let { Text(it, color = STColor.success, fontSize = 12.sp) }
                 Spacer(Modifier.height(30.dp))
             }
         }
@@ -187,33 +163,52 @@ fun ProjectToolDetailScreen(tool: ProjectTool, projectId: String?) {
 }
 
 @Composable
-private fun ActivityRow(row: ToolActivityRow) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(STColor.surface).padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(STColor.primary.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-            Icon(stIcon(row.icon), null, tint = STColor.accent, modifier = Modifier.size(18.dp))
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(row.title, color = STColor.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                row.kind?.takeIf { it.isNotEmpty() }?.let { Pill(it.replace("_", " ")) }
+private fun ActivityRow(row: ToolActivityRow, isLast: Boolean) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        // Timeline rail
+        Column(
+            Modifier.width(20.dp).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(16.dp))
+            Box(Modifier.size(10.dp).clip(CircleShape).background(STColor.primary))
+            if (!isLast) {
+                Box(Modifier.width(2.dp).weight(1f).background(STColor.primary.copy(alpha = 0.25f)))
             }
-            row.detail?.takeIf { it.isNotEmpty() }?.let { Text(it, color = STColor.textSecondary, fontSize = 13.sp, maxLines = 5) }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.actorName?.let {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(stIcon("person.fill"), null, tint = STColor.textMuted, modifier = Modifier.size(11.dp))
-                        Spacer(Modifier.width(3.dp))
-                        Text(it, color = STColor.textMuted, fontSize = 10.sp)
-                    }
+        }
+
+        Row(
+            Modifier
+                .weight(1f)
+                .padding(start = 8.dp, bottom = 10.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(STColor.surface)
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(STColor.primary.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                Icon(stIcon(row.icon), null, tint = STColor.accent, modifier = Modifier.size(18.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(row.title, color = STColor.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    row.kind?.takeIf { it.isNotEmpty() }?.let { Pill(it.replace("_", " ")) }
                 }
-                row.timestamp?.takeIf { it.isNotEmpty() }?.let {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(stIcon("clock"), null, tint = STColor.textMuted, modifier = Modifier.size(11.dp))
-                        Spacer(Modifier.width(3.dp))
-                        Text(it, color = STColor.textMuted, fontSize = 10.sp)
+                row.detail?.takeIf { it.isNotEmpty() }?.let { Text(it, color = STColor.textSecondary, fontSize = 13.sp, maxLines = 5) }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    row.actorName?.let {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(stIcon("person.fill"), null, tint = STColor.textMuted, modifier = Modifier.size(11.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text(it, color = STColor.textMuted, fontSize = 10.sp)
+                        }
+                    }
+                    row.timestamp?.takeIf { it.isNotEmpty() }?.let {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(stIcon("clock"), null, tint = STColor.textMuted, modifier = Modifier.size(11.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text(it, color = STColor.textMuted, fontSize = 10.sp)
+                        }
                     }
                 }
             }
