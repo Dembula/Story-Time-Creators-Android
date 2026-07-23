@@ -2,10 +2,10 @@
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.**
 -keepclassmembers class **$$serializer { *; }
--keepclasseswithmembers class online.storytime.creators.** {
+-keepclasseswithmembers class com.storytime.creators.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep,includedescriptorclasses class online.storytime.creators.**$$serializer { *; }
--keepclassmembers class online.storytime.creators.** {
+-keep,includedescriptorclasses class com.storytime.creators.**$$serializer { *; }
+-keepclassmembers class com.storytime.creators.** {
     *** Companion;
 }

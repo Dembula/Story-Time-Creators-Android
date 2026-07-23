@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "online.storytime.creators"
+    namespace = "com.storytime.creators"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "online.storytime.creators"
+        applicationId = "com.storytime.creators"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
