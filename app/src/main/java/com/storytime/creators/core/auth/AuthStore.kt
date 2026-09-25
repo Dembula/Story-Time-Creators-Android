@@ -6,9 +6,9 @@ import androidx.compose.runtime.setValue
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import com.storytime.creators.core.model.AccountPatchBody
 import com.storytime.creators.core.model.CreatorUser
 import com.storytime.creators.core.model.CsrfResponse
+import com.storytime.creators.core.model.EntryRedirectResponse
 import com.storytime.creators.core.network.ApiClient
 import com.storytime.creators.core.network.ApiException
 import com.storytime.creators.core.network.AppConfig
@@ -21,11 +21,21 @@ class AuthStore(private val client: ApiClient) {
         private set
     var currentUser by mutableStateOf<CreatorUser?>(null)
         private set
+    /** Relative path when license/plan is incomplete (e.g. /creator/onboarding/license). */
+    var pendingOnboardingPath by mutableStateOf<String?>(null)
+        private set
     var lastError by mutableStateOf<String?>(null)
     var isBusy by mutableStateOf(false)
         private set
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    val needsPlanSetup: Boolean
+        get() {
+            val path = pendingOnboardingPath ?: return false
+            if (path.isEmpty()) return false
+            return path.contains("onboarding") || path.contains("license") || path.contains("subscription")
+        }
 
     fun applyProfile(user: CreatorUser) {
         currentUser = user
@@ -40,6 +50,7 @@ class AuthStore(private val client: ApiClient) {
             }
             currentUser = me
             isAuthenticated = true
+            refreshPackageGate()
         } catch (e: Exception) {
             clearLocalSession()
         }
@@ -83,6 +94,7 @@ class AuthStore(private val client: ApiClient) {
             }
             currentUser = me
             isAuthenticated = true
+            refreshPackageGate()
         } catch (e: ApiException) {
             lastError = e.message
             clearLocalSession()
@@ -91,6 +103,17 @@ class AuthStore(private val client: ApiClient) {
             clearLocalSession()
         } finally {
             isBusy = false
+        }
+    }
+
+    /** Mirrors web entry-redirect: unfinished license → onboarding path. */
+    suspend fun refreshPackageGate() {
+        try {
+            val entry: EntryRedirectResponse = client.get("/api/auth/entry-redirect")
+            pendingOnboardingPath = entry.path
+        } catch (_: Exception) {
+            // Don't trap the user forever if /me works but entry-redirect fails.
+            pendingOnboardingPath = null
         }
     }
 
@@ -112,6 +135,7 @@ class AuthStore(private val client: ApiClient) {
     private fun clearLocalSession() {
         currentUser = null
         isAuthenticated = false
+        pendingOnboardingPath = null
     }
 
     private fun clearSessionCookies() {

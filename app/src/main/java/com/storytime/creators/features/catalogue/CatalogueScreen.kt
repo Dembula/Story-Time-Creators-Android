@@ -33,10 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.storytime.creators.core.Session
+import com.storytime.creators.core.billing.CreatorStoreProduct
 import com.storytime.creators.core.model.CreatorContentItem
 import com.storytime.creators.core.network.get
 import com.storytime.creators.core.theme.STColor
 import com.storytime.creators.core.theme.stIcon
+import com.storytime.creators.features.billing.UploadFeeStoreSheet
 import com.storytime.creators.ui.EmptyStateView
 import com.storytime.creators.ui.Loadable
 import com.storytime.creators.ui.Pill
@@ -117,10 +119,33 @@ fun Poster(url: String?, width: androidx.compose.ui.unit.Dp, height: androidx.co
 
 @Composable
 private fun ContentDetailDialog(item: CreatorContentItem, onClose: () -> Unit) {
+    var showFee by remember { mutableStateOf(false) }
+    var statusNote by remember { mutableStateOf<String?>(null) }
+    val awaiting = item.reviewStatus.equals("AWAITING_PAYMENT", ignoreCase = true)
+
+    if (showFee) {
+        UploadFeeStoreSheet(
+            contentId = item.id,
+            displayFee = Session.billing.displayPrice(CreatorStoreProduct.perFilmUpload),
+            onDismiss = { showFee = false },
+            onPaid = {
+                statusNote = "Upload fee paid. Title submitted for admin review."
+                showFee = false
+            },
+        )
+    }
+
     AlertDialog(
         onDismissRequest = onClose,
         containerColor = STColor.surface,
-        confirmButton = { TextButton(onClick = onClose) { Text("Close", color = STColor.primary) } },
+        confirmButton = {
+            if (awaiting) {
+                TextButton(onClick = { showFee = true }) {
+                    Text("Pay upload fee (Google Play)", color = STColor.primary)
+                }
+            }
+            TextButton(onClick = onClose) { Text("Close", color = STColor.textSecondary) }
+        },
         title = { Text(item.title, color = STColor.textPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -138,6 +163,14 @@ private fun ContentDetailDialog(item: CreatorContentItem, onClose: () -> Unit) {
                     StatTile("Ratings", "${item.count?.ratings ?: 0}", "star.fill", Modifier.weight(1f))
                     StatTile("Status", (item.reviewStatus ?: "DRAFT").replace("_", " "), "checkmark.seal.fill", Modifier.weight(1f))
                 }
+                if (awaiting) {
+                    Text(
+                        "This title is waiting for the per-film upload fee before it enters the review queue.",
+                        color = STColor.accent,
+                        fontSize = 13.sp,
+                    )
+                }
+                statusNote?.let { Text(it, color = STColor.success, fontSize = 13.sp) }
                 item.description?.takeIf { it.isNotEmpty() }?.let { Text(it, color = STColor.textSecondary, fontSize = 14.sp) }
                 (item.reviewFeedback ?: item.reviewNote)?.takeIf { it.isNotEmpty() }?.let { fb ->
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(STColor.surfaceElevated).padding(12.dp)) {

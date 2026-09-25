@@ -2,6 +2,7 @@ package com.storytime.creators.core
 
 import android.content.Context
 import com.storytime.creators.core.auth.AuthStore
+import com.storytime.creators.core.billing.BillingService
 import com.storytime.creators.core.model.AppRouter
 import com.storytime.creators.core.network.ApiClient
 import com.storytime.creators.core.network.PersistentCookieJar
@@ -19,6 +20,8 @@ object Session {
         private set
     lateinit var va: VAController
         private set
+    lateinit var billing: BillingService
+        private set
 
     private var initialized = false
 
@@ -29,6 +32,8 @@ object Session {
         auth = AuthStore(api)
         router = AppRouter()
         va = VAController(api)
+        billing = BillingService(context.applicationContext, api)
+        billing.start()
         initialized = true
     }
 }

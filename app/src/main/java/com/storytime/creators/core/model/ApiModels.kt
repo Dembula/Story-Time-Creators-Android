@@ -553,6 +553,75 @@ data class CreateContentBody(
     val reviewStatus: String? = null,
 )
 
+/** Response from POST /api/creator/content — may require payment before admin review. */
+@Serializable
+data class CreateContentResult(
+    val id: String? = null,
+    val title: String? = null,
+    val reviewStatus: String? = null,
+    val requiresPayment: Boolean? = null,
+    val checkoutUrl: String? = null,
+    val paymentRecordId: String? = null,
+    val uploadFee: Double? = null,
+    val error: String? = null,
+)
+
+@Serializable
+data class EntryRedirectResponse(val path: String? = null)
+
+@Serializable
+data class DistributionLicenseBody(
+    @SerialName("package") val packageKey: String? = null,
+    val billing: String? = null,
+    val source: String? = null,
+    val googleOrderId: String? = null,
+    val googleProductId: String? = null,
+    val googlePurchaseToken: String? = null,
+    val appleTransactionId: String? = null,
+    val appleProductId: String? = null,
+)
+
+@Serializable
+data class DistributionLicenseResponse(
+    val requiresPayment: Boolean? = null,
+    val checkoutUrl: String? = null,
+    val error: String? = null,
+    val planSummary: String? = null,
+    val pipelineAccess: Boolean? = null,
+    val license: DistributionLicenseInfo? = null,
+)
+
+@Serializable
+data class DistributionLicenseInfo(
+    val type: String? = null,
+    val status: String? = null,
+)
+
+@Serializable
+data class AndroidPurchaseBody(
+    val productId: String,
+    val purchaseToken: String,
+    val orderId: String? = null,
+    val packageName: String? = null,
+    val kind: String,
+    @SerialName("package") val packageKey: String? = null,
+    val billing: String? = null,
+    val contentId: String? = null,
+    val source: String = "android_app",
+)
+
+@Serializable
+data class AndroidPurchaseResponse(
+    val ok: Boolean? = null,
+    val error: String? = null,
+    val alreadyApplied: Boolean? = null,
+    val packageComplete: Boolean? = null,
+    val reviewStatus: String? = null,
+    val contentId: String? = null,
+    val planSummary: String? = null,
+    val pipelineAccess: Boolean? = null,
+)
+
 // MARK: - Upload
 
 @Serializable

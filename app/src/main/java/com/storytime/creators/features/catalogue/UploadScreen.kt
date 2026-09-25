@@ -48,12 +48,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.storytime.creators.core.Session
+import com.storytime.creators.core.billing.CreatorStoreProduct
 import com.storytime.creators.core.model.CreateContentBody
-import com.storytime.creators.core.model.CreatorContentItem
+import com.storytime.creators.core.model.CreateContentResult
 import com.storytime.creators.core.network.post
 import com.storytime.creators.core.service.MediaUploadService
 import com.storytime.creators.core.theme.STColor
 import com.storytime.creators.core.theme.stIcon
+import com.storytime.creators.features.billing.UploadFeeStoreSheet
 import com.storytime.creators.ui.STTextField
 import java.util.UUID
 
@@ -95,6 +97,8 @@ fun UploadScreen() {
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var succeeded by remember { mutableStateOf(false) }
     var savedContentId by remember { mutableStateOf<String?>(null) }
+    var showFeeSheet by remember { mutableStateOf(false) }
+    var pendingFeeLabel by remember { mutableStateOf<String?>(null) }
 
     val isLongForm = type.isLongForm
 
@@ -141,7 +145,7 @@ fun UploadScreen() {
         else -> true
     }
 
-    fun submit() {
+    fun submit(asDraft: Boolean) {
         scope.launch {
             submitting = true
             statusMessage = null
@@ -164,19 +168,50 @@ fun UploadScreen() {
                 duration = duration.toIntOrNull(),
                 episodes = if (isLongForm) episodes.toIntOrNull() else null,
                 linkedProjectId = router.selectedProjectId,
-                reviewStatus = "DRAFT",
+                reviewStatus = if (asDraft) "DRAFT" else "PENDING",
             )
-            val result = runCatching { client.post<CreatorContentItem, CreateContentBody>("/api/creator/content", body) }
+            val result = runCatching {
+                client.post<CreateContentResult, CreateContentBody>("/api/creator/content", body)
+            }
             submitting = false
             if (result.isSuccess) {
-                savedContentId = result.getOrNull()?.id
-                succeeded = true
-                statusMessage = "Draft saved to My Catalogue."
+                val res = result.getOrNull()
+                savedContentId = res?.id ?: savedContentId
+                if (!asDraft && res?.requiresPayment == true) {
+                    val fee = res.uploadFee
+                    pendingFeeLabel = if (fee != null) {
+                        "$${String.format("%.2f", fee)}"
+                    } else {
+                        Session.billing.displayPrice(CreatorStoreProduct.perFilmUpload)
+                    }
+                    showFeeSheet = true
+                    succeeded = true
+                    statusMessage = "Draft saved. Pay the upload fee to submit for review."
+                } else {
+                    succeeded = true
+                    statusMessage = if (asDraft) {
+                        "Draft saved to My Catalogue."
+                    } else {
+                        "Submitted for review."
+                    }
+                }
             } else {
                 succeeded = false
                 statusMessage = result.exceptionOrNull()?.message ?: "Save failed."
             }
         }
+    }
+
+    if (showFeeSheet && savedContentId != null) {
+        UploadFeeStoreSheet(
+            contentId = savedContentId!!,
+            displayFee = pendingFeeLabel,
+            onDismiss = { showFeeSheet = false },
+            onPaid = {
+                succeeded = true
+                statusMessage = "Upload fee paid. Title submitted for admin review."
+            },
+        )
     }
 
     Column(Modifier.fillMaxWidth()) {
@@ -200,7 +235,7 @@ fun UploadScreen() {
                     2 -> "2 · Title & details"
                     3 -> "3 · Media & assets"
                     4 -> "4 · Metadata"
-                    else -> "5 · Review & save draft"
+                    else -> "5 · Review & submit"
                 },
                 color = STColor.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
             )
@@ -211,7 +246,9 @@ fun UploadScreen() {
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            NoPayBanner("Upload media and save drafts from your device. Review submission checkout stays on the web studio — no charges here.")
+            NoPayBanner(
+                "Save drafts for free. On Submit for review, pay-per-film plans charge a one-time Google Play upload fee before admin sees your title. Catalogue unlimited skips the fee.",
+            )
 
             when (step) {
                 1 -> TypeStep(type, showMore, { type = it }, { showMore = it })
@@ -233,29 +270,48 @@ fun UploadScreen() {
         }
 
         // Nav bar
-        Row(
-            Modifier.fillMaxWidth().background(STColor.surface).padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (step > 1) {
+        Column(Modifier.fillMaxWidth().background(STColor.surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (step > 1) {
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                            .background(STColor.surfaceElevated).clickable { step -= 1 }.padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("Back", color = STColor.textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
+                }
+                val enabled = canAdvance && !submitting
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
-                        .background(STColor.surfaceElevated).clickable { step -= 1 }.padding(vertical = 14.dp),
+                        .background(if (enabled) STColor.primary else STColor.textMuted)
+                        .clickable(enabled = enabled) {
+                            if (step < 5) step += 1 else submit(asDraft = true)
+                        }
+                        .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text("Back", color = STColor.textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (submitting && step >= 5) CircularProgressIndicator(color = Color.Black, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                        Text(
+                            when {
+                                step < 5 -> "Continue"
+                                submitting -> "Saving…"
+                                else -> "Save draft"
+                            },
+                            color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                        )
+                    }
+                }
             }
-            val enabled = canAdvance && !submitting
-            Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
-                    .background(if (enabled) STColor.primary else STColor.textMuted)
-                    .clickable(enabled = enabled) { if (step < 5) step += 1 else submit() }
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (submitting) CircularProgressIndicator(color = Color.Black, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+            if (step == 5) {
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .background(if (!submitting && title.isNotBlank()) STColor.primary else STColor.textMuted)
+                        .clickable(enabled = !submitting && title.isNotBlank()) { submit(asDraft = false) }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text(
-                        if (step < 5) "Continue" else if (submitting) "Saving…" else "Save draft",
+                        if (submitting) "Submitting…" else "Submit for review",
                         color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
                     )
                 }
@@ -487,7 +543,7 @@ private fun ReviewStep(
         ReviewRow("Trailer", if (trailerUrl == null) "—" else "Ready")
         ReviewRow("Script", if (scriptUrl == null) "—" else "Ready")
         Text(
-            "Saves as DRAFT to My Catalogue — finish review & payment on the web studio when ready.",
+            "Save as DRAFT anytime. Submit for review charges the per-film Google Play fee only if you’re on the pay-per-film plan — catalogue unlimited and pipeline skip it.",
             color = STColor.textSecondary, fontSize = 12.sp,
         )
     }

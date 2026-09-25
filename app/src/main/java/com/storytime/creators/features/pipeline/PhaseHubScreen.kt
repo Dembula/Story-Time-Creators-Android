@@ -133,6 +133,19 @@ fun PhaseHubScreen(phase: ProjectPhase) {
             }
 
             SectionHeader("Tools", "${tools.size}")
+            if (Session.auth.needsPlanSetup) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(STColor.primary.copy(alpha = 0.12f)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text("Pipeline access needs a creator plan", color = STColor.textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(
+                        "Choose Full pipeline (monthly $19.99 or yearly $199.99) — or start with pay-per-film / catalogue unlimited. Server unlocks tools after purchase.",
+                        color = STColor.textSecondary,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
             tools.forEach { tool ->
                 val needsProject = !tool.isMarketplaceStyle && selectedProjectId == null
                 val subtitle = when {

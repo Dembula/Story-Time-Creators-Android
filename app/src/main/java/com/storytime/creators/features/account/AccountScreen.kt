@@ -36,6 +36,7 @@ import com.storytime.creators.core.model.CreatorUser
 import com.storytime.creators.core.network.get
 import com.storytime.creators.core.network.patch
 import com.storytime.creators.core.theme.STColor
+import com.storytime.creators.features.billing.CreatorPlanStoreDialog
 import com.storytime.creators.ui.GradientButton
 import com.storytime.creators.ui.Loadable
 import com.storytime.creators.ui.STTextField
@@ -65,6 +66,15 @@ fun AccountScreen() {
         var saving by remember { mutableStateOf(false) }
         var message by remember { mutableStateOf<String?>(null) }
         var success by remember { mutableStateOf(false) }
+        var showPlan by remember { mutableStateOf(false) }
+
+        if (showPlan) {
+            CreatorPlanStoreDialog(
+                title = if (auth.needsPlanSetup) "Finish your creator plan" else "Creator plan & billing",
+                onDismiss = { showPlan = false },
+                onCompleted = { showPlan = false },
+            )
+        }
 
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -83,6 +93,27 @@ fun AccountScreen() {
                     me.email?.let { Text(it, color = STColor.textSecondary, fontSize = 13.sp) }
                     me.reputationScore?.let { Text("Reputation ${it.toInt()}", color = STColor.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
                 }
+            }
+
+            Section("Creator plan & billing") {
+                Text(
+                    if (auth.needsPlanSetup) "Plan incomplete — finish setup to unlock catalogue/pipeline entitlements."
+                    else "Your creator package is active.",
+                    color = STColor.textSecondary,
+                    fontSize = 13.sp,
+                )
+                GradientButton(
+                    if (auth.needsPlanSetup) "Choose creator plan" else "Manage / change plan",
+                    Modifier.fillMaxWidth(),
+                ) { showPlan = true }
+                Text(
+                    "Pay per film · ${com.storytime.creators.core.network.AppConfig.IAP.FallbackPrice.perFilmUpload}\n" +
+                        "Catalogue unlimited · ${com.storytime.creators.core.network.AppConfig.IAP.FallbackPrice.uploadYearly}\n" +
+                        "Pipeline monthly · ${com.storytime.creators.core.network.AppConfig.IAP.FallbackPrice.pipelineMonthly}\n" +
+                        "Pipeline yearly · ${com.storytime.creators.core.network.AppConfig.IAP.FallbackPrice.pipelineYearly}",
+                    color = STColor.textMuted,
+                    fontSize = 11.sp,
+                )
             }
 
             Section("Public profile") {
